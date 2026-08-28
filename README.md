@@ -15,15 +15,81 @@ An unavailable household is skipped for that turn. The missed duty is not deferr
 
 Copy `custom_components/house_duty` into the same directory under your Home Assistant configuration, restart, and add the integration from the UI. No YAML is required.
 
-## Configuration
+## Step-by-step setup
 
-Select the garbage and chores calendar entities, reminder time (default 18:00), and broadcast title (default `Gelber Sack`). Add any number of households in rotation order. Every household needs a display name, a `notify` entity/group, and an absence calendar. Finally choose an anchor date and the household responsible for the week containing it.
+### 1. Prepare the source calendars
 
-Create holidays as all-day events in each household's absence calendar. Any timed or all-day event that overlaps any part of a Monday–Monday duty period makes that household unavailable for the whole period. Titles in absence calendars do not matter.
+Create or identify two Home Assistant calendar entities:
 
-Normal and previously unknown garbage titles go to the assigned household. A normalized, case-insensitive match for the configured broadcast title goes to every household. Chore reminders use the source event title and go to the assigned household. Multiple events remain independent; persisted event keys prevent repeat delivery after a reload or restart.
+1. A **garbage calendar** containing collection events. The event summary becomes the garbage type shown in notifications. No whitelist is needed; unknown titles are handled automatically.
+2. A **chores calendar** containing shared jobs such as `Clean front door porch`. The event summary becomes the chore text.
 
-Options let you change source calendars, reminder time, broadcast title, household details, membership, and order. A membership/order change invalidates old cursor assumptions, so House Duty visibly reports the reset and deterministically rebuilds from the original anchor instead of silently guessing. Use the `house_duty.reset_rotation` action to repair reality explicitly; provide the config-entry ID, an anchor date, and the household ID.
+House Duty reads these calendars only. It does not create, edit, or delete their events.
+
+### 2. Prepare household notification targets (optional)
+
+For each household that should receive messages, create or identify a Home Assistant `notify` entity. A notify group is useful when one household has several recipients.
+
+This field is optional. A household without a notification target still participates in the rotation, but House Duty cannot deliver its assigned or broadcast messages anywhere.
+
+### 3. Prepare absence calendars (optional)
+
+Create a separate calendar for each household whose holidays should affect the rotation. Add holidays as all-day events; event titles do not matter. A timed event also works.
+
+Any absence event overlapping any part of a Monday–Monday duty period makes that household unavailable for the entire period. A household without an absence calendar is always considered available.
+
+### 4. Add House Duty
+
+Go to **Settings → Devices & services → Add integration → House Duty**, then configure:
+
+1. Select the garbage calendar.
+2. Select the chores calendar.
+3. Choose the reminder time. The default is 18:00 on the evening before an event starts.
+4. Enter one or more garbage event titles that should notify everyone. The default list contains `Gelber Sack`. Matching ignores case and repeated whitespace.
+5. Review the preview. House Duty displays up to the next three matching garbage events per broadcast title found during the coming year. An em dash means no match was found or the calendar preview was unavailable; it does not prevent setup.
+
+### 5. Add households in rotation order
+
+For every household:
+
+1. Enter its display name.
+2. Optionally select its notification target.
+3. Optionally select its absence calendar.
+4. Choose whether to add another household.
+
+The number of households is not limited. Their setup order is their initial rotation order.
+
+### 6. Anchor the rotation
+
+Choose a past or current date and the household that was actually responsible during the Monday–Sunday week containing that date. This confirmed anchor assignment is authoritative. House Duty reconstructs subsequent weeks from it and persists the resulting assignments across restarts and upgrades.
+
+Example: if Apartment B is responsible this week, select any date in this week and choose **Apartment B**.
+
+### 7. Verify the entities
+
+After setup, check the House Duty device for:
+
+- **Current duty household** — the current assignment and any households skipped for this period.
+- **Next duty household** — a preview that considers known absences.
+- **Problem** — active when assignment or configured resources need attention.
+
+## Notification and rotation behavior
+
+Normal and previously unknown garbage titles go to the assigned household. A normalized match for any configured broadcast title goes to every household that has a notification target. Chore reminders use the source event title and go to the assigned household. Multiple events remain independent; persisted per-recipient delivery keys prevent repeat messages after a reload or restart.
+
+An unavailable household is skipped for that occurrence of its turn. The missed duty is not deferred and does not need to be made up later.
+
+## Changing the setup
+
+Open the integration's **Configure** dialog to:
+
+- change calendars, reminder time, broadcast-title list, or rotation order;
+- preview the next three matching broadcast events after editing the list;
+- add, rename, edit, or remove households;
+- add, clear, or change optional notification targets and absence calendars;
+- explicitly repair or re-anchor the rotation.
+
+A membership/order change invalidates old cursor assumptions, so House Duty reports the reset and deterministically rebuilds from the anchor instead of silently guessing. The `house_duty.reset_rotation` action provides the same explicit repair capability for automations or Developer Tools; provide the config-entry ID, anchor date, and household ID.
 
 ## Status and failures
 
