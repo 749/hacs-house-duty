@@ -1,0 +1,21 @@
+reset_rotation:
+  name: Reset rotation
+  description: Explicitly discard assignments and re-anchor the rotation.
+  fields:
+    config_entry_id:
+      name: Configuration entry
+      required: true
+      selector:
+        config_entry:
+          integration: house_duty
+    anchor_date:
+      name: Anchor date
+      required: true
+      selector:
+        date:
+    household_id:
+      name: Household ID
+      description: The household ID shown in entity attributes or diagnostics.
+      required: true
+      selector:
+        text:
