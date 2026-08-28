@@ -45,3 +45,5 @@ ruff check .
 ```
 
 GitHub Actions also runs HACS validation and Hassfest. A public GitHub repository, repository description/topics/issues, brand registration, and an actual GitHub release are host-side publication steps that cannot be represented by files alone.
+
+Maintainers create a release by pushing a version tag matching the integration manifest, for example `v0.1.0`. The release workflow publishes a GitHub release with generated notes; tags without the `v` prefix do not trigger publication.
