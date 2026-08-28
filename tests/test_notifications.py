@@ -34,6 +34,7 @@ def coordinator() -> HouseDutyCoordinator:
     value.config = {CONF_SPECIAL_TITLES: ["Gelber Sack", "Christmas trees"]}
     value.sent = set()
     value.translations = {}
+    value.next_unavailable_calendars = []
     services = FakeServices()
     value.hass = SimpleNamespace(
         config=SimpleNamespace(time_zone="Europe/Berlin"),
@@ -116,3 +117,17 @@ async def test_household_without_absence_calendar_is_always_available() -> None:
     value._calendar_events = events
     await value._async_update_next_preview()
     assert queried == ["calendar.b"]
+
+
+@pytest.mark.asyncio
+async def test_unavailable_absence_calendar_does_not_blank_next_preview() -> None:
+    value = coordinator()
+
+    async def events(entity_id, *args):
+        return None if entity_id == "calendar.a" else []
+
+    value._calendar_events = events
+    await value._async_update_next_preview()
+
+    assert value.next_assignment.household_id == "a"
+    assert value.next_unavailable_calendars == ["calendar.a"]

@@ -95,6 +95,8 @@ A membership/order change invalidates old cursor assumptions, so House Duty repo
 
 The integration creates current-duty and next-duty sensors plus a problem binary sensor. Current-duty attributes include period bounds, the originally next household, and skipped households. Missing calendars/notify targets and invalidated rotation state create Home Assistant Repairs issues.
 
+If an absence calendar cannot be read while the next week is being previewed, the sensor keeps a best-effort assignment instead of becoming `Unknown`. Its `unavailable_absence_calendars` attribute identifies calendars whose absence information could not be considered, and Home Assistant creates a Repair for each one.
+
 If everyone is absent, nobody is assigned. House Duty creates a Repairs issue and fires `house_duty_assignment_problem`; it consumes one complete cycle without changing who is originally next for the following week. Arrange that week manually and use the reset action only if the real rotation changed.
 
 ## Upgrading and troubleshooting

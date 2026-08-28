@@ -60,6 +60,7 @@ class HouseDutyCoordinator:
         self.listeners: list[callable] = []
         self.translations: dict[str, str] = {}
         self.next_assignment: Assignment | None = None
+        self.next_unavailable_calendars: list[str] = []
 
     async def async_initialize(self) -> None:
         self.translations = await async_get_translations(
@@ -135,6 +136,15 @@ class HouseDutyCoordinator:
         except Exception:  # Home Assistant service errors are reported as a repair.
             _LOGGER.exception("Unable to read calendar %s", entity_id)
             self.last_error = "calendar_unavailable"
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"calendar_{entity_id}",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="calendar_unavailable",
+                translation_placeholders={"entity_id": entity_id},
+            )
             return None
         ir.async_delete_issue(self.hass, DOMAIN, f"calendar_{entity_id}")
         return response.get(entity_id, {}).get("events", []) if response else []
@@ -185,6 +195,7 @@ class HouseDutyCoordinator:
 
         current_period = period_for(dt_util.now())
         next_period = Period(current_period.start + timedelta(days=7))
+        self.next_unavailable_calendars = []
         if materialized := self.state.assignments.get(next_period.start.isoformat()):
             self.next_assignment = materialized
             return
@@ -198,8 +209,8 @@ class HouseDutyCoordinator:
                 continue
             events = await self._calendar_events(absence_calendar, start, end)
             if events is None:
-                self.next_assignment = None
-                return
+                self.next_unavailable_calendars.append(absence_calendar)
+                continue
             if any(overlaps_period(_absence(event, tz), next_period, tz) for event in events):
                 unavailable.add(household["id"])
         self.next_assignment, _ = resolve(next_period, self.state.household_ids, self.state.next_index, unavailable)

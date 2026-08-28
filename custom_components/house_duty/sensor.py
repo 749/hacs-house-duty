@@ -26,6 +26,14 @@ class _Base(SensorEntity):
     def _name(self, household_id):
         return next((h["name"] for h in self.coordinator.households if h["id"] == household_id), None)
 
+    def _assignment_value(self, item):
+        if item is None:
+            return None
+        if item.household_id is None:
+            key = f"component.{DOMAIN}.common.no_household_available"
+            return self.coordinator.translations.get(key, "No household available")
+        return self._name(item.household_id)
+
 
 class HouseDutyCurrent(_Base):
     _attr_translation_key = "current_duty"
@@ -36,20 +44,22 @@ class HouseDutyCurrent(_Base):
 
     @property
     def native_value(self):
-        item = self.coordinator.current
-        return self._name(item.household_id) if item and item.household_id else None
+        return self._assignment_value(self.coordinator.current)
 
     @property
     def extra_state_attributes(self):
         item = self.coordinator.current
         if not item:
             return {}
-        return {
+        attributes = {
             "duty_period_start": item.period.start.isoformat(),
             "duty_period_end": item.period.end.isoformat(),
             "originally_next_household": self._name(item.originally_next),
             "skipped_households": [self._name(x) for x in item.skipped],
         }
+        if item.problem:
+            attributes["reason"] = "all_households_absent"
+        return attributes
 
 
 class HouseDutyNext(_Base):
@@ -61,17 +71,21 @@ class HouseDutyNext(_Base):
 
     @property
     def native_value(self):
-        item = self.coordinator.next_assignment
-        return self._name(item.household_id) if item and item.household_id else None
+        return self._assignment_value(self.coordinator.next_assignment)
 
     @property
     def extra_state_attributes(self):
         item = self.coordinator.next_assignment
         if not item:
             return {}
-        return {
+        attributes = {
             "duty_period_start": item.period.start.isoformat(),
             "duty_period_end": item.period.end.isoformat(),
             "originally_next_household": self._name(item.originally_next),
             "skipped_households": [self._name(value) for value in item.skipped],
         }
+        if self.coordinator.next_unavailable_calendars:
+            attributes["unavailable_absence_calendars"] = self.coordinator.next_unavailable_calendars
+        if item.problem:
+            attributes["reason"] = "all_households_absent"
+        return attributes

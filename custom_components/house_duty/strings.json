@@ -1,6 +1,6 @@
 {
   "title": "House Duty",
-  "common": {"garbage_title": "Garbage tomorrow", "garbage_message": "{event} is collected tomorrow. {household} is on duty.", "chore_title": "House duty tomorrow", "chore_message": "{household}: {event} tomorrow."},
+  "common": {"garbage_title": "Garbage tomorrow", "garbage_message": "{event} is collected tomorrow. {household} is on duty.", "chore_title": "House duty tomorrow", "chore_message": "{household}: {event} tomorrow.", "no_household_available": "No household available"},
   "config": {
     "error": {"anchor_in_future": "The anchor date cannot be in the future."},
     "step": {
