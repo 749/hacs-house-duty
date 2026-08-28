@@ -35,7 +35,11 @@ def coordinator() -> HouseDutyCoordinator:
     value.sent = set()
     value.translations = {}
     services = FakeServices()
-    value.hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: object()), services=services)
+    value.hass = SimpleNamespace(
+        config=SimpleNamespace(time_zone="Europe/Berlin"),
+        states=SimpleNamespace(get=lambda entity_id: object()),
+        services=services,
+    )
     return value
 
 
@@ -70,3 +74,21 @@ async def test_broadcast_retries_only_failed_recipient(monkeypatch) -> None:
     available.add("notify.b")
     await value._send_event("garbage", event, date(2026, 8, 25))
     assert [call[3]["target"]["entity_id"] for call in value.hass.services.calls] == ["notify.a", "notify.b"]
+
+
+@pytest.mark.asyncio
+async def test_overlapping_multiday_event_is_not_resent_as_a_new_event(monkeypatch) -> None:
+    monkeypatch.setattr(coordinator_module.ir, "async_delete_issue", lambda *args: None)
+    value = coordinator()
+
+    async def events(*args):
+        return [{"summary": "Holiday cleanup", "start": "2026-08-24", "end": "2026-08-27"}]
+
+    async def save():
+        return None
+
+    value._calendar_events = events
+    value._save = save
+    value.config.update({"garbage_calendar": "calendar.g", "chores_calendar": "calendar.c"})
+    await value._send_tomorrows_events(SimpleNamespace(date=lambda: date(2026, 8, 24)))
+    assert value.hass.services.calls == []

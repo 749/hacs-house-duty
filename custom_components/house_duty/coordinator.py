@@ -219,7 +219,10 @@ class HouseDutyCoordinator:
             if events is None:
                 continue
             for event in events:
-                await self._send_event(kind, event, tomorrow)
+                event_date = _parse_dt(event["start"], tz).date()
+                if event_date != tomorrow:
+                    continue
+                await self._send_event(kind, event, event_date)
         await self._save()
 
     async def _send_event(self, kind: str, event: dict, event_date: date) -> None:
