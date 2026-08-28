@@ -73,10 +73,12 @@ def test_repeated_long_absence_and_year_boundary() -> None:
 
 def test_notification_routing() -> None:
     ids = ["a", "b", "c"]
-    assert notification_recipients("garbage", "Biomüll", "Gelber Sack", "b", ids) == ["b"]
-    assert notification_recipients("garbage", "New unknown type", "Gelber Sack", "b", ids) == ["b"]
-    assert notification_recipients("garbage", "  GELBER   sack ", "Gelber Sack", "b", ids) == ids
-    assert notification_recipients("chore", "Clean porch", "Gelber Sack", "c", ids) == ["c"]
+    special = ["Gelber Sack", "Christmas trees"]
+    assert notification_recipients("garbage", "Biomüll", special, "b", ids) == ["b"]
+    assert notification_recipients("garbage", "New unknown type", special, "b", ids) == ["b"]
+    assert notification_recipients("garbage", "  GELBER   sack ", special, "b", ids) == ids
+    assert notification_recipients("garbage", "christmas TREES", special, "b", ids) == ids
+    assert notification_recipients("chore", "Clean porch", special, "c", ids) == ["c"]
 
 
 def test_configuration_change_compatibility() -> None:

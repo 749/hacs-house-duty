@@ -6,7 +6,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PLATFORMS
+from .const import CONF_SPECIAL_TITLE, CONF_SPECIAL_TITLES, DOMAIN, PLATFORMS
 from .coordinator import HouseDutyCoordinator
 
 type HouseDutyConfigEntry = ConfigEntry[HouseDutyCoordinator]
@@ -48,3 +48,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: HouseDutyConfigEntry) -
     if result and len(hass.config_entries.async_entries(DOMAIN)) <= 1:
         hass.services.async_remove(DOMAIN, "reset_rotation")
     return result
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate legacy single-title configuration to the title list."""
+    if entry.version > 2:
+        return False
+    if entry.version == 1:
+        data = dict(entry.data)
+        options = dict(entry.options)
+        for values in (data, options):
+            if old_title := values.pop(CONF_SPECIAL_TITLE, None):
+                values[CONF_SPECIAL_TITLES] = [old_title]
+        hass.config_entries.async_update_entry(entry, data=data, options=options, version=2)
+    return True

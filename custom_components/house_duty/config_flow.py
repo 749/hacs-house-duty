@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.helpers import selector
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_ABSENCE_CALENDAR,
@@ -20,11 +22,12 @@ from .const import (
     CONF_HOUSEHOLDS,
     CONF_NOTIFICATION_TARGET,
     CONF_REMINDER_TIME,
-    CONF_SPECIAL_TITLE,
+    CONF_SPECIAL_TITLES,
     DEFAULT_REMINDER_TIME,
-    DEFAULT_SPECIAL_TITLE,
+    DEFAULT_SPECIAL_TITLES,
     DOMAIN,
 )
+from .domain import normalized_title
 
 
 def _calendar_selector():
@@ -35,8 +38,43 @@ def _notify_selector():
     return selector.EntitySelector(selector.EntitySelectorConfig(domain="notify"))
 
 
+def _title_list_selector():
+    return selector.TextSelector(selector.TextSelectorConfig(multiple=True))
+
+
+def _clean_titles(titles: list[str]) -> list[str]:
+    """Trim titles and discard empty list entries."""
+    return [title.strip() for title in titles if title.strip()]
+
+
+async def _async_broadcast_preview(hass, calendar: str, titles: list[str]) -> str:
+    """Render the next three matching garbage events for each configured title."""
+    matches: dict[str, list[str]] = {normalized_title(title): [] for title in titles}
+    start = dt_util.now()
+    try:
+        response = await hass.services.async_call(
+            "calendar",
+            "get_events",
+            {
+                ATTR_ENTITY_ID: calendar,
+                "start_date_time": start.isoformat(),
+                "end_date_time": (start + timedelta(days=366)).isoformat(),
+            },
+            blocking=True,
+            return_response=True,
+        )
+        events = (response.get(calendar, {}).get("events") or []) if response else []
+    except Exception:  # A preview must never prevent configuration.
+        events = []
+    for event in events:
+        key = normalized_title(event.get("summary", ""))
+        if key in matches and len(matches[key]) < 3:
+            matches[key].append(str(event.get("start", "")))
+    return "\n\n".join(f"**{title}**: {'; '.join(matches[normalized_title(title)]) or '—'}" for title in titles)
+
+
 class HouseDutyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
@@ -46,17 +84,30 @@ class HouseDutyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
+            user_input[CONF_SPECIAL_TITLES] = _clean_titles(user_input[CONF_SPECIAL_TITLES])
             self.data.update(user_input)
-            return await self.async_step_household()
+            self._preview = await _async_broadcast_preview(
+                self.hass, self.data[CONF_GARBAGE_CALENDAR], self.data[CONF_SPECIAL_TITLES]
+            )
+            return await self.async_step_broadcast_preview()
         schema = vol.Schema(
             {
                 vol.Required(CONF_GARBAGE_CALENDAR): _calendar_selector(),
                 vol.Required(CONF_CHORES_CALENDAR): _calendar_selector(),
                 vol.Required(CONF_REMINDER_TIME, default=DEFAULT_REMINDER_TIME): selector.TimeSelector(),
-                vol.Required(CONF_SPECIAL_TITLE, default=DEFAULT_SPECIAL_TITLE): str,
+                vol.Required(CONF_SPECIAL_TITLES, default=DEFAULT_SPECIAL_TITLES): _title_list_selector(),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
+
+    async def async_step_broadcast_preview(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            return await self.async_step_household()
+        return self.async_show_form(
+            step_id="broadcast_preview",
+            data_schema=vol.Schema({}),
+            description_placeholders={"preview": self._preview},
+        )
 
     async def async_step_household(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
@@ -68,8 +119,8 @@ class HouseDutyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required("name"): str,
-                vol.Required(CONF_NOTIFICATION_TARGET): _notify_selector(),
-                vol.Required(CONF_ABSENCE_CALENDAR): _calendar_selector(),
+                vol.Optional(CONF_NOTIFICATION_TARGET): _notify_selector(),
+                vol.Optional(CONF_ABSENCE_CALENDAR): _calendar_selector(),
                 vol.Required("add_another", default=True): bool,
             }
         )
@@ -141,17 +192,22 @@ class HouseDutyOptionsFlow(config_entries.OptionsFlowWithReload):
     async def async_step_general(self, user_input=None):
         current = self._current
         if user_input is not None:
+            user_input[CONF_SPECIAL_TITLES] = _clean_titles(user_input[CONF_SPECIAL_TITLES])
             order = user_input.pop("household_order")
             by_id = {item["id"]: item for item in current[CONF_HOUSEHOLDS]}
             user_input[CONF_HOUSEHOLDS] = [by_id[item_id] for item_id in order]
-            return self._finish(user_input)
+            self._pending_general = user_input
+            self._preview = await _async_broadcast_preview(
+                self.hass, user_input[CONF_GARBAGE_CALENDAR], user_input[CONF_SPECIAL_TITLES]
+            )
+            return await self.async_step_general_broadcast_preview()
         households = current[CONF_HOUSEHOLDS]
         schema = vol.Schema(
             {
                 vol.Required(CONF_GARBAGE_CALENDAR, default=current[CONF_GARBAGE_CALENDAR]): _calendar_selector(),
                 vol.Required(CONF_CHORES_CALENDAR, default=current[CONF_CHORES_CALENDAR]): _calendar_selector(),
                 vol.Required(CONF_REMINDER_TIME, default=current[CONF_REMINDER_TIME]): selector.TimeSelector(),
-                vol.Required(CONF_SPECIAL_TITLE, default=current[CONF_SPECIAL_TITLE]): str,
+                vol.Required(CONF_SPECIAL_TITLES, default=current[CONF_SPECIAL_TITLES]): _title_list_selector(),
                 vol.Required("household_order", default=[x["id"] for x in households]): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[selector.SelectOptionDict(value=x["id"], label=x["name"]) for x in households],
@@ -163,6 +219,15 @@ class HouseDutyOptionsFlow(config_entries.OptionsFlowWithReload):
         )
         return self.async_show_form(step_id="general", data_schema=schema)
 
+    async def async_step_general_broadcast_preview(self, user_input=None):
+        if user_input is not None:
+            return self._finish(self._pending_general)
+        return self.async_show_form(
+            step_id="general_broadcast_preview",
+            data_schema=vol.Schema({}),
+            description_placeholders={"preview": self._preview},
+        )
+
     async def async_step_edit_household(self, user_input=None):
         if user_input is not None:
             self._editing_id = user_input["household"]
@@ -173,13 +238,20 @@ class HouseDutyOptionsFlow(config_entries.OptionsFlowWithReload):
         households = self._current[CONF_HOUSEHOLDS]
         item = next(value for value in households if value["id"] == self._editing_id)
         if user_input is not None:
-            updated = [{**value, **user_input} if value["id"] == self._editing_id else value for value in households]
+            replacement = {"id": item["id"], **user_input}
+            updated = [replacement if value["id"] == self._editing_id else value for value in households]
             return self._finish({CONF_HOUSEHOLDS: updated})
         schema = vol.Schema(
             {
                 vol.Required("name", default=item["name"]): str,
-                vol.Required(CONF_NOTIFICATION_TARGET, default=item[CONF_NOTIFICATION_TARGET]): _notify_selector(),
-                vol.Required(CONF_ABSENCE_CALENDAR, default=item[CONF_ABSENCE_CALENDAR]): _calendar_selector(),
+                vol.Optional(
+                    CONF_NOTIFICATION_TARGET,
+                    description={"suggested_value": item.get(CONF_NOTIFICATION_TARGET)},
+                ): _notify_selector(),
+                vol.Optional(
+                    CONF_ABSENCE_CALENDAR,
+                    description={"suggested_value": item.get(CONF_ABSENCE_CALENDAR)},
+                ): _calendar_selector(),
             }
         )
         return self.async_show_form(step_id="edit_household_details", data_schema=schema)
@@ -191,8 +263,8 @@ class HouseDutyOptionsFlow(config_entries.OptionsFlowWithReload):
         schema = vol.Schema(
             {
                 vol.Required("name"): str,
-                vol.Required(CONF_NOTIFICATION_TARGET): _notify_selector(),
-                vol.Required(CONF_ABSENCE_CALENDAR): _calendar_selector(),
+                vol.Optional(CONF_NOTIFICATION_TARGET): _notify_selector(),
+                vol.Optional(CONF_ABSENCE_CALENDAR): _calendar_selector(),
             }
         )
         return self.async_show_form(step_id="add_household", data_schema=schema)

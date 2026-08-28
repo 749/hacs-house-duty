@@ -24,9 +24,9 @@ from .const import (
     CONF_HOUSEHOLDS,
     CONF_NOTIFICATION_TARGET,
     CONF_REMINDER_TIME,
-    CONF_SPECIAL_TITLE,
+    CONF_SPECIAL_TITLES,
     DEFAULT_REMINDER_TIME,
-    DEFAULT_SPECIAL_TITLE,
+    DEFAULT_SPECIAL_TITLES,
     DOMAIN,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -148,7 +148,10 @@ class HouseDutyCoordinator:
             start = datetime.combine(period.start, time.min, tz)
             end = datetime.combine(period.end, time.min, tz)
             for household in self.households:
-                events = await self._calendar_events(household[CONF_ABSENCE_CALENDAR], start, end)
+                absence_calendar = household.get(CONF_ABSENCE_CALENDAR)
+                if not absence_calendar:
+                    continue
+                events = await self._calendar_events(absence_calendar, start, end)
                 if events is None:
                     self._notify_listeners()
                     return
@@ -190,7 +193,10 @@ class HouseDutyCoordinator:
         end = datetime.combine(next_period.end, time.min, tz)
         unavailable: set[str] = set()
         for household in self.households:
-            events = await self._calendar_events(household[CONF_ABSENCE_CALENDAR], start, end)
+            absence_calendar = household.get(CONF_ABSENCE_CALENDAR)
+            if not absence_calendar:
+                continue
+            events = await self._calendar_events(absence_calendar, start, end)
             if events is None:
                 self.next_assignment = None
                 return
@@ -245,17 +251,19 @@ class HouseDutyCoordinator:
         recipient_ids = notification_recipients(
             kind,
             summary,
-            self.config.get(CONF_SPECIAL_TITLE, DEFAULT_SPECIAL_TITLE),
+            self.config.get(CONF_SPECIAL_TITLES, DEFAULT_SPECIAL_TITLES),
             assignment.household_id,
             [item["id"] for item in self.households],
         )
         recipients = [item for item in self.households if item["id"] in recipient_ids]
         duty_name = next(item["name"] for item in self.households if item["id"] == assignment.household_id)
         for household in recipients:
+            target = household.get(CONF_NOTIFICATION_TARGET)
+            if not target:
+                continue
             delivery_id = f"{uid}|{household['id']}"
             if delivery_id in self.sent:
                 continue
-            target = household[CONF_NOTIFICATION_TARGET]
             if self.hass.states.get(target) is None:
                 ir.async_create_issue(
                     self.hass,

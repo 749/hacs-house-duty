@@ -14,7 +14,7 @@ from custom_components.house_duty.const import (
     CONF_HOUSEHOLDS,
     CONF_NOTIFICATION_TARGET,
     CONF_REMINDER_TIME,
-    CONF_SPECIAL_TITLE,
+    CONF_SPECIAL_TITLES,
 )
 
 
@@ -35,7 +35,7 @@ def flow() -> TestOptionsFlow:
             CONF_GARBAGE_CALENDAR: "calendar.garbage",
             CONF_CHORES_CALENDAR: "calendar.chores",
             CONF_REMINDER_TIME: "18:00:00",
-            CONF_SPECIAL_TITLE: "Gelber Sack",
+            CONF_SPECIAL_TITLES: ["Gelber Sack", "Christmas trees"],
             CONF_HOUSEHOLDS: [
                 {
                     "id": "a",
@@ -93,3 +93,12 @@ async def test_anchor_household_cannot_be_removed() -> None:
     value = flow()
     result = await value.async_step_remove_household({"household": "a"})
     assert result["errors"] == {"base": "anchor_household_required"}
+
+
+@pytest.mark.asyncio
+async def test_household_optional_entities_can_be_cleared() -> None:
+    value = flow()
+    await value.async_step_edit_household({"household": "b"})
+    result = await value.async_step_edit_household_details({"name": "No entities"})
+    edited = result["data"][CONF_HOUSEHOLDS][1]
+    assert edited == {"id": "b", "name": "No entities"}

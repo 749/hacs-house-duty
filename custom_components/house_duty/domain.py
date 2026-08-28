@@ -138,12 +138,13 @@ def normalized_title(value: str) -> str:
 def notification_recipients(
     kind: str,
     title: str,
-    special_title: str,
+    special_titles: list[str],
     assigned_household: str,
     household_ids: list[str],
 ) -> list[str]:
     """Route a source event without depending on Home Assistant."""
-    if kind == "garbage" and normalized_title(title) == normalized_title(special_title):
+    normalized_special_titles = {normalized_title(value) for value in special_titles if normalized_title(value)}
+    if kind == "garbage" and normalized_title(title) in normalized_special_titles:
         return household_ids.copy()
     return [assigned_household]
 
