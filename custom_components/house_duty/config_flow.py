@@ -9,7 +9,6 @@ from uuid import uuid4
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
-from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 
@@ -56,10 +55,10 @@ async def _async_broadcast_preview(hass, calendar: str, titles: list[str]) -> st
             "calendar",
             "get_events",
             {
-                ATTR_ENTITY_ID: calendar,
                 "start_date_time": start.isoformat(),
                 "end_date_time": (start + timedelta(days=366)).isoformat(),
             },
+            target={"entity_id": calendar},
             blocking=True,
             return_response=True,
         )

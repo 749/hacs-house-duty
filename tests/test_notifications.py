@@ -45,6 +45,21 @@ def coordinator() -> HouseDutyCoordinator:
 
 
 @pytest.mark.asyncio
+async def test_calendar_events_uses_home_assistant_action_target(monkeypatch) -> None:
+    monkeypatch.setattr(coordinator_module.ir, "async_delete_issue", lambda *args: None)
+    value = coordinator()
+    await value._calendar_events(
+        "calendar.a",
+        coordinator_module.datetime(2026, 8, 31, tzinfo=coordinator_module.ZoneInfo("Europe/Berlin")),
+        coordinator_module.datetime(2026, 9, 7, tzinfo=coordinator_module.ZoneInfo("Europe/Berlin")),
+    )
+
+    _, _, data, kwargs = value.hass.services.calls[0]
+    assert kwargs["target"] == {"entity_id": "calendar.a"}
+    assert "entity_id" not in data
+
+
+@pytest.mark.asyncio
 async def test_normal_garbage_and_chore_route_to_assignee(monkeypatch) -> None:
     monkeypatch.setattr(coordinator_module.ir, "async_delete_issue", lambda *args: None)
     value = coordinator()

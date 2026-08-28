@@ -35,7 +35,10 @@ async def test_preview_lists_next_three_matches_per_title() -> None:
         {"summary": " CHRISTMAS trees ", "start": "2026-12-20"}
     ]
 
+    calls = []
+
     async def async_call(*args, **kwargs):
+        calls.append((args, kwargs))
         return {"calendar.garbage": {"events": events}}
 
     hass = SimpleNamespace(services=SimpleNamespace(async_call=async_call))
@@ -46,3 +49,5 @@ async def test_preview_lists_next_three_matches_per_title() -> None:
     assert "2026-09-04" not in preview
     assert "**Christmas trees**: 2026-12-20" in preview
     assert "**Unscheduled**: —" in preview
+    assert calls[0][1]["target"] == {"entity_id": "calendar.garbage"}
+    assert "entity_id" not in calls[0][0][2]

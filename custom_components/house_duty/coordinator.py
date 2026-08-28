@@ -7,7 +7,6 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_change
@@ -129,7 +128,8 @@ class HouseDutyCoordinator:
             response = await self.hass.services.async_call(
                 "calendar",
                 "get_events",
-                {ATTR_ENTITY_ID: entity_id, "start_date_time": start.isoformat(), "end_date_time": end.isoformat()},
+                {"start_date_time": start.isoformat(), "end_date_time": end.isoformat()},
+                target={"entity_id": entity_id},
                 blocking=True,
                 return_response=True,
             )
