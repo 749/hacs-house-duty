@@ -947,7 +947,7 @@ wheels = [
 
 [[package]]
 name = "hacs-house-duty"
-version = "0.2.4"
+version = "0.2.4" # x-release-please-version
 source = { editable = "." }
 
 [package.optional-dependencies]

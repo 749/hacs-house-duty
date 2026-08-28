@@ -111,6 +111,10 @@ logger:
 
 Reload House Duty once, then inspect **Settings → System → Logs**. Debug output includes queried calendar IDs and time ranges, event counts, reconciliation cursors, resolved household IDs, sensor values, and unreadable calendars. Event contents and notification messages are not logged.
 
+## Releases
+
+Releases are derived from Conventional Commits on `main`. Release Please maintains a release pull request containing the changelog and semantic version bump (`fix` → patch, `feat` → minor, and `BREAKING CHANGE` → major). Merging that pull request creates the version tag and GitHub release automatically and updates the integration manifest, Python project metadata, and lockfile together.
+
 If everyone is absent, nobody is assigned. House Duty creates a Repairs issue and fires `house_duty_assignment_problem`; it consumes one complete cycle without changing who is originally next for the following week. Arrange that week manually and use the reset action only if the real rotation changed.
 
 ## Upgrading and troubleshooting
