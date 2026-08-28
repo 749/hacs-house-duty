@@ -97,6 +97,18 @@ The integration creates current-duty and next-duty sensors plus a problem binary
 
 If an absence calendar cannot be read while the next week is being previewed, the sensor keeps a best-effort assignment instead of becoming `Unknown`. Its `unavailable_absence_calendars` attribute identifies calendars whose absence information could not be considered, and Home Assistant creates a Repair for each one.
 
+### Debug logging
+
+To troubleshoot calendar reads or assignment state, add this to `configuration.yaml` and restart Home Assistant:
+
+```yaml
+logger:
+  logs:
+    custom_components.house_duty: debug
+```
+
+Reload House Duty once, then inspect **Settings → System → Logs**. Debug output includes queried calendar IDs and time ranges, event counts, reconciliation cursors, resolved household IDs, sensor values, and unreadable calendars. Event contents and notification messages are not logged.
+
 If everyone is absent, nobody is assigned. House Duty creates a Repairs issue and fires `house_duty_assignment_problem`; it consumes one complete cycle without changing who is originally next for the following week. Arrange that week manually and use the reset action only if the real rotation changed.
 
 ## Upgrading and troubleshooting

@@ -1,9 +1,13 @@
 """Status sensors for House Duty."""
 
+import logging
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -44,7 +48,9 @@ class HouseDutyCurrent(_Base):
 
     @property
     def native_value(self):
-        return self._assignment_value(self.coordinator.current)
+        value = self._assignment_value(self.coordinator.current)
+        _LOGGER.debug("Current-duty sensor read: value=%s", value)
+        return value
 
     @property
     def extra_state_attributes(self):
@@ -71,7 +77,14 @@ class HouseDutyNext(_Base):
 
     @property
     def native_value(self):
-        return self._assignment_value(self.coordinator.next_assignment)
+        value = self._assignment_value(self.coordinator.next_assignment)
+        _LOGGER.debug(
+            "Next-duty sensor read: value=%s assignment=%s unreadable_calendars=%s",
+            value,
+            self.coordinator.next_assignment,
+            self.coordinator.next_unavailable_calendars,
+        )
+        return value
 
     @property
     def extra_state_attributes(self):

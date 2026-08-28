@@ -62,6 +62,11 @@ class HouseDutyCoordinator:
         self.next_unavailable_calendars: list[str] = []
 
     async def async_initialize(self) -> None:
+        _LOGGER.debug(
+            "Initializing entry %s with %d households",
+            self.entry.entry_id,
+            len(self.households),
+        )
         self.translations = await async_get_translations(
             self.hass, self.hass.config.language, "common", integrations={DOMAIN}
         )
@@ -96,6 +101,14 @@ class HouseDutyCoordinator:
                 )
             self.state = RotationState.from_anchor(anchor, ids, anchor_id)
         now = dt_util.now()
+        _LOGGER.debug(
+            "Loaded rotation for entry %s: anchor=%s next_index=%d assignments=%d now=%s",
+            self.entry.entry_id,
+            self.state.anchor.start,
+            self.state.next_index,
+            len(self.state.assignments),
+            now,
+        )
         await self.async_reconcile(period_for(now.date() + timedelta(days=1)))
         reminder = time.fromisoformat(self.config.get(CONF_REMINDER_TIME, DEFAULT_REMINDER_TIME))
         if now.timetz().replace(tzinfo=None) >= reminder:
@@ -112,7 +125,9 @@ class HouseDutyCoordinator:
             listener()
 
     async def _calendar_events(self, entity_id: str, start: datetime, end: datetime) -> list[dict] | None:
+        _LOGGER.debug("Querying calendar %s from %s through %s", entity_id, start, end)
         if self.hass.states.get(entity_id) is None:
+            _LOGGER.warning("Configured calendar entity %s does not exist", entity_id)
             self.last_error = "calendar_unavailable"
             ir.async_create_issue(
                 self.hass,
@@ -147,9 +162,17 @@ class HouseDutyCoordinator:
             )
             return None
         ir.async_delete_issue(self.hass, DOMAIN, f"calendar_{entity_id}")
-        return response.get(entity_id, {}).get("events", []) if response else []
+        events = response.get(entity_id, {}).get("events", []) if response else []
+        _LOGGER.debug("Calendar %s returned %d events", entity_id, len(events))
+        return events
 
     async def async_reconcile(self, through: Period) -> None:
+        _LOGGER.debug(
+            "Reconciling entry %s from anchor %s through %s",
+            self.entry.entry_id,
+            self.state.anchor.start,
+            through.start,
+        )
         tz = ZoneInfo(self.hass.config.time_zone)
         unavailable: dict[str, set[str]] = {}
         cursor = self.state.anchor.start
@@ -169,6 +192,11 @@ class HouseDutyCoordinator:
                     unavailable.setdefault(cursor.isoformat(), set()).add(household["id"])
             cursor += timedelta(days=7)
         created = self.state.reconcile(through, unavailable)
+        _LOGGER.debug(
+            "Reconciliation created %d assignments; next_index=%d",
+            len(created),
+            self.state.next_index,
+        )
         for assignment in created:
             if assignment.problem:
                 ir.async_create_issue(
@@ -198,6 +226,12 @@ class HouseDutyCoordinator:
         self.next_unavailable_calendars = []
         if materialized := self.state.assignments.get(next_period.start.isoformat()):
             self.next_assignment = materialized
+            _LOGGER.debug(
+                "Next preview uses materialized assignment: period=%s household=%s skipped=%s",
+                next_period.start,
+                materialized.household_id,
+                materialized.skipped,
+            )
             return
         tz = ZoneInfo(self.hass.config.time_zone)
         start = datetime.combine(next_period.start, time.min, tz)
@@ -210,10 +244,25 @@ class HouseDutyCoordinator:
             events = await self._calendar_events(absence_calendar, start, end)
             if events is None:
                 self.next_unavailable_calendars.append(absence_calendar)
+                _LOGGER.debug(
+                    "Next preview ignores unreadable absence calendar %s for household %s",
+                    absence_calendar,
+                    household["id"],
+                )
                 continue
             if any(overlaps_period(_absence(event, tz), next_period, tz) for event in events):
                 unavailable.add(household["id"])
         self.next_assignment, _ = resolve(next_period, self.state.household_ids, self.state.next_index, unavailable)
+        _LOGGER.debug(
+            "Next preview resolved: period=%s household=%s originally_next=%s skipped=%s "
+            "unavailable_households=%s unreadable_calendars=%s",
+            next_period.start,
+            self.next_assignment.household_id,
+            self.next_assignment.originally_next,
+            self.next_assignment.skipped,
+            sorted(unavailable),
+            self.next_unavailable_calendars,
+        )
 
     async def _async_tick(self, now: datetime) -> None:
         local = dt_util.as_local(now)
