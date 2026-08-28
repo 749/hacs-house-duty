@@ -1,11 +1,11 @@
 {
   "domain": "house_duty",
   "name": "House Duty",
-  "codeowners": ["@viromania"],
+  "codeowners": ["@749"],
   "config_flow": true,
-  "documentation": "https://github.com/viromania/hacs-house-duty",
+  "documentation": "https://github.com/749/hacs-house-duty",
   "integration_type": "service",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/viromania/hacs-house-duty/issues",
+  "issue_tracker": "https://github.com/749/hacs-house-duty/issues",
   "version": "0.1.0"
 }
