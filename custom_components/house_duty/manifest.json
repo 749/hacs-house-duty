@@ -1,7 +1,9 @@
 {
   "domain": "house_duty",
   "name": "House Duty",
-  "codeowners": ["@749"],
+  "codeowners": [
+    "@749"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/749/hacs-house-duty",
   "integration_type": "service",
