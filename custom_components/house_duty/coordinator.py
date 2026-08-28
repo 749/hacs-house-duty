@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
@@ -109,6 +110,12 @@ class HouseDutyCoordinator:
             len(self.state.assignments),
             now,
         )
+        self.entry.async_on_unload(async_at_started(self.hass, self._async_started))
+
+    async def _async_started(self, _hass: HomeAssistant) -> None:
+        """Reconcile after calendar-providing integrations have created their entities."""
+        now = dt_util.now()
+        _LOGGER.debug("Home Assistant started; beginning calendar reconciliation for %s", self.entry.entry_id)
         await self.async_reconcile(period_for(now.date() + timedelta(days=1)))
         reminder = time.fromisoformat(self.config.get(CONF_REMINDER_TIME, DEFAULT_REMINDER_TIME))
         if now.timetz().replace(tzinfo=None) >= reminder:

@@ -97,6 +97,8 @@ The integration creates current-duty and next-duty sensors plus a problem binary
 
 If an absence calendar cannot be read while the next week is being previewed, the sensor keeps a best-effort assignment instead of becoming `Unknown`. Its `unavailable_absence_calendars` attribute identifies calendars whose absence information could not be considered, and Home Assistant creates a Repair for each one.
 
+During a Home Assistant restart, House Duty waits for startup to complete before querying calendars. This allows calendar-providing integrations to register their entities before reconciliation begins.
+
 ### Debug logging
 
 To troubleshoot calendar reads or assignment state, add this to `configuration.yaml` and restart Home Assistant:
